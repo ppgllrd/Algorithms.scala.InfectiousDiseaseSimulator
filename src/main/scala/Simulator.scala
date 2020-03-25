@@ -101,9 +101,11 @@ class Simulator(window: Drawable, conf: Configuration) {
   }
 
   private def redraw(delay: Long): Unit = {
+    val (alive, dead, infected, exposed) = statistics
+    val percentInfected = 100.0 * infected / alive
+    history(time) = 100.0 * infected / alive
+
     window.drawWith{ g2D =>
-      val (alive, dead, infected, exposed) = statistics
-      val percentInfected = 100.0 * infected / alive
       g2D.setFont(Fonts.mono)
       g2D.setColor(Color.red)
       g2D.drawString(f"Infected: $infected%3d($percentInfected%6.2f%%)  Dead: $dead%4d", left, bottom)
@@ -112,7 +114,6 @@ class Simulator(window: Drawable, conf: Configuration) {
       g2D.setColor(Color.black)
       g2D.drawString(f"Time: $time%.2f", left+650, bottom)
 
-      history(time) = 100.0 * infected / alive
       history.drawOn(g2D)
 
       for(p <- individuals)

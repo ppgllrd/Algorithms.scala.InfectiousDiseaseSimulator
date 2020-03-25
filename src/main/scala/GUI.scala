@@ -11,26 +11,27 @@ import java.awt.geom.AffineTransform
 import java.awt.{Color, Dimension, RenderingHints}
 
 import javax.swing.BorderFactory
+import javax.swing.plaf.FontUIResource
+import javax.swing.UIManager
 
 import scala.swing._
-import scala.swing.event.ButtonClicked
+import scala.swing.event.{ButtonClicked, ValueChanged}
 
 trait Drawable {
   def drawWith(procedure : Graphics2D => Unit): Unit
 }
 
 object Fonts {
-  val mono = new Font(Font.Monospaced, java.awt.Font.PLAIN, 15)
+  val mono = new Font(Font.Monospaced, java.awt.Font.PLAIN, 14)
   val sans8 = new Font(Font.SansSerif, java.awt.Font.PLAIN, 8)
+  val sans10 = new Font(Font.SansSerif, java.awt.Font.PLAIN, 10)
+  val sans11 = new Font(Font.SansSerif, java.awt.Font.PLAIN, 10)
   val sans14 = new Font(Font.SansSerif, java.awt.Font.PLAIN, 14)
-  val default = sans14
+  val default = sans11
 }
 
 class IntField(v: Int) extends TextField {
-  text = v.toString
-  columns = 7
   horizontalAlignment = Alignment.Right
-  font = Fonts.default
 
   def value: Int =
     try {
@@ -40,68 +41,151 @@ class IntField(v: Int) extends TextField {
         text = "0"
         0
     }
+
+  def value_=(v: Int): Unit = {
+    text = v.toString
+  }
+
+  value_=(v)
 }
 
-trait NumericSlider[A] extends Slider {
-  val from: Int
-  val to: Int
-  def format(n: Int): String
-  def fromInt(n: Int): A
-  def toInt(v: A): Int
+abstract class NumericSlider[A] extends BoxPanel(Orientation.Horizontal) {
+  protected def formatLabel(n: A): String
+  protected def formatText(n: A): String = formatLabel(n)
+  protected def fromInt(n: Int): A
+  protected def toInt(v: A): Int
 
-  min = from
-  max = to
-  majorTickSpacing = (to - from + 1) / 10
-  minorTickSpacing = majorTickSpacing / 5
-  paintTicks = true
+  private val slider = new Slider
+  private val textField = new TextField {
+    font = Fonts.sans10
+    columns = 4
+    horizontalAlignment = Alignment.Right
+    editable = false
+    maximumSize = new Dimension(0,15)
+  }
 
-  val lbs = List.range(from, to+1, majorTickSpacing)
-  labels = lbs.zip(lbs.map(x =>
-    new Label{
-      text = format(x)
-      font = Fonts.sans8
-    })).toMap
-  paintLabels = true
+  private def config(): Unit = {
+    slider.majorTickSpacing = (slider.max - slider.min + 1) / 10
+    slider.minorTickSpacing = slider.majorTickSpacing / 5
+    slider.paintTicks = true
 
-  def contents: A = fromInt(value)
-  def contents_=(v: A) =
-    value = toInt(v)
+    slider.labels = {
+      val lbs = List.range(slider.min, slider.max+1, slider.majorTickSpacing)
+      lbs.zip(lbs.map(x =>
+        new Label{
+          text = formatLabel(fromInt(x))
+          font = Fonts.sans8
+        })).toMap
+    }
+    slider.paintLabels = true
+  }
+
+  def min: Int = slider.min
+  def min_=(n: Int): Unit = {
+    slider.min = n
+    config()
+  }
+
+  def max: Int = slider.max
+  def max_=(n: Int): Unit = {
+    slider.max = n
+    config()
+  }
+
+  contents += textField
+  contents += Swing.HStrut(2)
+  contents += slider
+
+  def value: A = fromInt(slider.value)
+  def value_=(v: A): Unit = {
+    slider.value = toInt(v)
+    textField.text = formatText(v)
+  }
+
+  override def enabled: Boolean = slider.enabled
+  override def enabled_=(e: Boolean): Unit = {
+    slider.enabled_=(e)
+    textField.enabled_=(e)
+  }
+
+  override def tooltip: String = slider.tooltip
+  override def tooltip_=(s: String): Unit = {
+    slider.tooltip_=(s)
+    textField.tooltip_=(s)
+  }
+
+  listenTo(slider)
+  reactions += {
+    case ValueChanged(_) =>
+      textField.text = formatText(value)
+  }
+
+  config()
 }
 
-class DoubleSlider(v: Double, val from: Int, val to: Int) extends NumericSlider[Double] {
-  def format(n: Int): String = s"$n"
+class DoubleSlider(v: Double, from: Int, to: Int) extends NumericSlider[Double] {
+  def formatLabel(v: Double): String = s"$v"
   def fromInt(n: Int): Double = n
   def toInt(v: Double): Int = v.toInt
 
-  contents = v
+  min = from
+  max = to
+  value = v
 }
 
 class ProbSlider(v: Double) extends DoubleSlider(v, 0, 100) {
-  override def format(n: Int): String = f"${n/100.0}%.1f"
+  override def formatLabel(v: Double): String = f"$v%.1f"
+  override def formatText(v: Double): String = f"$v%.2f"
   override def fromInt(n: Int): Double = n/100.0
   override def toInt(v: Double): Int = (v*100).toInt
 }
 
-class IntSlider(v: Int, val from: Int, val to: Int) extends NumericSlider[Int] {
-  def format(n: Int): String = s"$n"
+class IntSlider(v: Int, from: Int, to: Int) extends NumericSlider[Int] {
+  def formatLabel(v: Int): String = s"$v"
   def fromInt(n: Int): Int = n
   def toInt(v: Int): Int = v
 
-  contents = v
-}
-
-
-class Description extends Label {
-  font = Fonts.default
+  min = from
+  max = to
+  value = v
 }
 
 object GUI {
   def apply(): GUI =
     new GUI()
+
+  private def setGUIFont(f: FontUIResource): Unit = {
+    val keys = UIManager.getDefaults.keys
+    while(keys.hasMoreElements) {
+      val key = keys.nextElement
+      val value = UIManager.get(key)
+      if(value.isInstanceOf[FontUIResource])
+        UIManager.put(key, f)
+    }
+  }
+  setGUIFont(new FontUIResource(Fonts.default))
 }
 
 class GUI() extends MainFrame with Drawable {
   title = "Simulator"
+  resizable = false
+
+  private var _scale = 1.0
+  private val scaleTooltip = "Scale for simulation window"
+  private val scaleLabel = new Label("Simulation scale:") {
+    tooltip = scaleTooltip
+  }
+  private val scaleSlider = new ProbSlider(_scale)  {
+    tooltip = scaleTooltip
+  }
+
+  def scale: Double = _scale
+  def scale_=(sc: Double): Unit = {
+    _scale = sc
+    scaleSlider.value = sc
+    canvas.preferredSize = new Dimension((1.02*scale*BoundingBox.width).toInt, (1.4*scale*BoundingBox.height).toInt)
+    pack()
+  }
 
   private var drawingProcedure = (g2D: Graphics2D) => {}
   private def setDrawingProcedure(procedure : Graphics2D => Unit): Unit = {
@@ -112,6 +196,7 @@ class GUI() extends MainFrame with Drawable {
 
         val transform = new AffineTransform()
         transform.translate(w/2, h/2)
+        transform.scale(scale, scale)
         g2D.transform(transform)
         procedure(g2D)
       }
@@ -132,8 +217,6 @@ class GUI() extends MainFrame with Drawable {
     background = Color.white
     peer.setDoubleBuffered(false)
 
-    preferredSize = new Dimension((1.02*BoundingBox.width).toInt, (1.4*BoundingBox.height).toInt)
-
     override def paintComponent(g2D: Graphics2D) {
       super.paintComponent(g2D)
       g2D.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
@@ -144,22 +227,19 @@ class GUI() extends MainFrame with Drawable {
   }
 
   private val seedTooltip = "Seed for this random simulation"
-  private val seedLabel = new Description {
-    text = "Seed:"
+  private val seedLabel = new Label("Seed:") {
     tooltip = seedTooltip
   }
   private val seedIntField = new IntField(DefaultConfiguration.seed) {
     tooltip = seedTooltip
+    columns = 10
   }
-  private val randomSeedButton = new Button{
-    text = "Random"
+  private val randomSeedButton = new Button("Random") {
     tooltip = "Generate a random seed"
-    font = Fonts.default
   }
 
   private val popTooltip = "Number of individuals in population"
-  private val popSizeLabel = new Description {
-    text = "Population size:"
+  private val popSizeLabel = new Label("Population size:") {
     tooltip = popTooltip
   }
   private val popSizeSlider = new IntSlider(DefaultConfiguration.populationSz, 0, 1500) {
@@ -167,17 +247,15 @@ class GUI() extends MainFrame with Drawable {
   }
 
   private val velTooltip = "Velocity of individuals in normal distributed with μ=0 and this value as σ"
-  private val velLabel = new Description {
-    text = "Velocity variation:"
+  private val velLabel = new Label("Velocity variance:") {
     tooltip = velTooltip
   }
-  private val velSlider = new DoubleSlider(DefaultConfiguration.velocitySigma, 0, 100) {
+  private val velSlider = new IntSlider(DefaultConfiguration.velocitySigma.toInt, 0, 100) {
     tooltip = velTooltip
   }
 
-  private val probInfectTooltip = "Probability of getting infected after contacting an infected individual"
-  private val probInfectLabel = new Description {
-    text = "Probability Infection:"
+  private val probInfectTooltip = "Probability of getting infected after contacting another infected individual"
+  private val probInfectLabel = new Label("Infection rate:") {
     tooltip = probInfectTooltip
   }
   private val probInfectSlider = new ProbSlider(DefaultConfiguration.probInfection) {
@@ -185,8 +263,7 @@ class GUI() extends MainFrame with Drawable {
   }
 
   private val probDieTooltip = "Probability of dying after getting infected"
-  private val probDieLabel = new Description {
-    text = "Probability dying:"
+  private val probDieLabel = new Label("Death rate:") {
     tooltip = probDieTooltip
   }
   private val probDieSlider = new ProbSlider(DefaultConfiguration.probDying) {
@@ -194,27 +271,23 @@ class GUI() extends MainFrame with Drawable {
   }
 
   private val infectiousTooltip = "Time an individual remains infectious to others is normal distributed around this value(μ) with σ=1"
-  private val infectiousLabel = new Description {
-    text = "Time infectious:"
+  private val infectiousLabel = new Label("Time infectious:") {
     tooltip = infectiousTooltip
   }
-  private val infectiousSlider = new DoubleSlider(DefaultConfiguration.timeInfectious, 0, 100){
+  private val infectiousSlider = new IntSlider(DefaultConfiguration.timeInfectious.toInt, 0, 100){
     tooltip = infectiousTooltip
   }
 
   private val HzTootlTip = "Number of redraw events per clock tick"
-  private val HzLabel = new Description {
-    text = "Redraw frequency:"
+  private val HzLabel = new Label("Redraw frequency:") {
     tooltip = HzTootlTip
   }
   private val HzSlider = new IntSlider(DefaultConfiguration.Hz, 0, 60) {
     tooltip = HzTootlTip
   }
 
-  val aboutButton = new Button {
-    text = "About..."
+  private val aboutButton = new Button("About...") {
     tooltip = "Show information about this program"
-    font = Fonts.default
   }
 
   private val toDisable = List(seedIntField, randomSeedButton, popSizeSlider, velSlider, probInfectSlider, probDieSlider, infectiousSlider, HzSlider, aboutButton)
@@ -225,7 +298,6 @@ class GUI() extends MainFrame with Drawable {
     val startText = "Start"
     text = startText
     tooltip = s"$text running simulation"
-    font = Fonts.default
 
     var threadOpt: Option[Thread] = None
 
@@ -235,12 +307,12 @@ class GUI() extends MainFrame with Drawable {
           val thread = new Thread {
             override def run {
               val s = seedIntField.value
-              val p = popSizeSlider.contents
-              val pbInfect = probInfectSlider.contents
-              val pbDying = probDieSlider.contents
-              val vel = velSlider.contents
-              val infectious = infectiousSlider.contents
-              val Hz = HzSlider.contents
+              val p = popSizeSlider.value
+              val pbInfect = probInfectSlider.value
+              val pbDying = probDieSlider.value
+              val vel = velSlider.value
+              val infectious = infectiousSlider.value
+              val Hz = HzSlider.value
 
               // create a simulator and simulate
               val conf = DefaultConfiguration.copy(seed = s, Hz = Hz, velocitySigma = vel, populationSz = p, probInfection = pbInfect, probDying = pbDying, timeInfectious = infectious)
@@ -264,43 +336,72 @@ class GUI() extends MainFrame with Drawable {
     }
   }
 
-  private val controls = new GridPanel(11,2) {
-    border = BorderFactory.createEmptyBorder(5,5,5,5)
-    contents ++= List(
-        new FlowPanel() {
-          contents ++= Seq(seedLabel, seedIntField)
-        }
-      , new FlowPanel() {
+  private val grid = new GridBagPanel {
+    def constraints( x: Int, y: Int
+                   , gridwidth: Int = 1, gridheight: Int = 1
+                   , weightx: Double = 0.0, weighty: Double = 0.0
+                   , fill: GridBagPanel.Fill.Value = GridBagPanel.Fill.None
+                   , insets: Insets = new Insets(5,1,5,1)
+                   , anchor: GridBagPanel.Anchor.Value = GridBagPanel.Anchor.West
+                   ) : Constraints = {
+      val c = new Constraints
+      c.gridx = x
+      c.gridy = y
+      c.gridwidth = gridwidth
+      c.gridheight = gridheight
+      c.weightx = weightx
+      c.weighty = weighty
+      c.fill = fill
+      c.insets = insets
+      c.anchor = anchor
+      c
+    }
+
+    border = BorderFactory.createEmptyBorder(10,5,50,2)
+    add(seedLabel, constraints(0, 0))
+    add(new FlowPanel() {
+          hGap = 0
+          contents += seedIntField
+          contents += Swing.HStrut(5)
           contents += randomSeedButton
         }
-      , popSizeLabel, popSizeSlider
-      , velLabel, velSlider
-      , probInfectLabel, probInfectSlider
-      , infectiousLabel, infectiousSlider
-      , probDieLabel, probDieSlider
-      , HzLabel, HzSlider
-      , Swing.VStrut(20), Swing.VStrut(20)
-      , new FlowPanel() {
-          contents += startButton
-        }
-      , Swing.VStrut(0)
-      , Swing.VStrut(60), Swing.VStrut(60)
-      , new FlowPanel() {
-          contents += aboutButton
-      }, Swing.VStrut(0)
-    )
+      , constraints(1, 0))
+
+    add(popSizeLabel, constraints(0, 1))
+    add(popSizeSlider, constraints(1, 1))
+
+    add(velLabel, constraints(0, 2))
+    add(velSlider, constraints(1, 2))
+
+    add(probInfectLabel, constraints(0, 3))
+    add(probInfectSlider, constraints(1, 3))
+
+    add(infectiousLabel, constraints(0, 4))
+    add(infectiousSlider, constraints(1, 4))
+
+    add(probDieLabel, constraints(0, 5))
+    add(probDieSlider, constraints(1, 5))
+
+    add(HzLabel, constraints(0, 6))
+    add(HzSlider, constraints(1, 6))
+
+    add(startButton, constraints(0, 7, weighty = 2))
+
+    add(scaleLabel, constraints(0, 8))
+    add(scaleSlider, constraints(1, 8))
+
+    add(aboutButton, constraints(0, 9))
   }
 
   contents = new BorderPanel {
-    layout += new BoxPanel(Orientation.Vertical) {
-      contents += Swing.VGlue
-      contents += controls
-      contents += Swing.VGlue
-    } -> BorderPanel.Position.West
+    layout += new BoxPanel(Orientation.Vertical){
+                border = BorderFactory.createEtchedBorder()
+                contents += grid
+              } -> BorderPanel.Position.West
     layout += canvas -> BorderPanel.Position.Center
   }
 
-  listenTo(randomSeedButton, startButton, aboutButton)
+  listenTo(randomSeedButton, startButton, aboutButton, scaleSlider)
   reactions += {
     case ButtonClicked(`randomSeedButton`) =>
       seedIntField.text = Random.uniform(Int.MaxValue).toString
@@ -314,9 +415,12 @@ class GUI() extends MainFrame with Drawable {
           "@ José E. Gallardo, 2020.\n\n" +
           "Partly based on Java Event-Driven Simulator by Robert Sedgewick and Kevin Wayne."
         , s"About ${window.title}...")
+
+    case ValueChanged(`scaleSlider`) =>
+      window.scale = scaleSlider.value
   }
 
   visible = true
-  pack()
+  scale_=(0.8)
   startButton.requestFocus()
 }
