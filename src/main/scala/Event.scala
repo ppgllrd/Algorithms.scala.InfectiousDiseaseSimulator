@@ -8,14 +8,22 @@
  *******************************************************************/
 
 trait Event {
-  val time: Double
+  def time: Double
   def isValid: Boolean = true
 }
 
-case class Redraw(time: Double) extends Event
+// mutable and object because with can do with a single one of these
+case object Redraw extends Event {
+  private var _time: Double = _
 
-case class Collision(time: Double // time that event is scheduled to occur
-                     , ia: Individual, ib: Individual // particles involved in event
+  def time: Double = _time
+  def time_=(t: Double): Unit = {
+    _time = t
+  }
+}
+
+case class Collision( time: Double // time that event is scheduled to occur
+                    , ia: Individual, ib: Individual // particles involved in event
                     ) extends Event {
   // collision counts at event creation
   private val iaCollisions = ia.collisions

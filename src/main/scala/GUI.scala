@@ -30,7 +30,7 @@ object Fonts {
   val default = sans11
 }
 
-class IntField(v: Int) extends TextField {
+class IntField(v: Int = 0) extends TextField {
   horizontalAlignment = Alignment.Right
 
   def value: Int =
@@ -124,6 +124,9 @@ abstract class NumericSlider[A] extends BoxPanel(Orientation.Horizontal) {
 }
 
 class DoubleSlider(v: Double, from: Int, to: Int) extends NumericSlider[Double] {
+  def this(from: Int, to: Int) {
+    this(0, from, to)
+  }
   def formatLabel(v: Double): String = s"$v"
   def fromInt(n: Int): Double = n
   def toInt(v: Double): Int = v.toInt
@@ -133,7 +136,7 @@ class DoubleSlider(v: Double, from: Int, to: Int) extends NumericSlider[Double] 
   value = v
 }
 
-class ProbSlider(v: Double) extends DoubleSlider(v, 0, 100) {
+class ProbSlider(v: Double = 0) extends DoubleSlider(v, 0, 100) {
   override def formatLabel(v: Double): String = f"$v%.1f"
   override def formatText(v: Double): String = f"$v%.2f"
   override def fromInt(n: Int): Double = n/100.0
@@ -141,6 +144,9 @@ class ProbSlider(v: Double) extends DoubleSlider(v, 0, 100) {
 }
 
 class IntSlider(v: Int, from: Int, to: Int) extends NumericSlider[Int] {
+  def this(from: Int, to: Int) {
+    this(0, from, to)
+  }
   def formatLabel(v: Int): String = s"$v"
   def fromInt(n: Int): Int = n
   def toInt(v: Int): Int = v
@@ -230,7 +236,7 @@ class GUI() extends MainFrame with Drawable {
   private val seedLabel = new Label("Seed:") {
     tooltip = seedTooltip
   }
-  private val seedIntField = new IntField(DefaultConfiguration.seed) {
+  private val seedIntField = new IntField() {
     tooltip = seedTooltip
     columns = 10
   }
@@ -238,51 +244,51 @@ class GUI() extends MainFrame with Drawable {
     tooltip = "Generate a random seed"
   }
 
-  private val popTooltip = "Number of individuals in population"
-  private val popSizeLabel = new Label("Population size:") {
-    tooltip = popTooltip
+  private val populationSzTooltip = "Number of individuals in population"
+  private val populationSzLabel = new Label("Population size:") {
+    tooltip = populationSzTooltip
   }
-  private val popSizeSlider = new IntSlider(DefaultConfiguration.populationSz, 0, 1500) {
-    tooltip = popTooltip
-  }
-
-  private val velTooltip = "Velocity of individuals in normal distributed with μ=0 and this value as σ"
-  private val velLabel = new Label("Velocity variance:") {
-    tooltip = velTooltip
-  }
-  private val velSlider = new IntSlider(DefaultConfiguration.velocitySigma.toInt, 0, 100) {
-    tooltip = velTooltip
+  private val populationSzSlider = new IntSlider(0, 1500) {
+    tooltip = populationSzTooltip
   }
 
-  private val probInfectTooltip = "Probability of getting infected after contacting another infected individual"
-  private val probInfectLabel = new Label("Infection rate:") {
-    tooltip = probInfectTooltip
+  private val velocityTooltip = "Velocity of individuals in normal distributed with μ=0 and this value as σ"
+  private val velocityLabel = new Label("Velocity variance:") {
+    tooltip = velocityTooltip
   }
-  private val probInfectSlider = new ProbSlider(DefaultConfiguration.probInfection) {
-    tooltip = probInfectTooltip
-  }
-
-  private val probDieTooltip = "Probability of dying after getting infected"
-  private val probDieLabel = new Label("Death rate:") {
-    tooltip = probDieTooltip
-  }
-  private val probDieSlider = new ProbSlider(DefaultConfiguration.probDying) {
-    tooltip = probDieTooltip
+  private val velocitySlider = new IntSlider(0, 100) {
+    tooltip = velocityTooltip
   }
 
-  private val infectiousTooltip = "Time an individual remains infectious to others is normal distributed around this value(μ) with σ=1"
-  private val infectiousLabel = new Label("Time infectious:") {
-    tooltip = infectiousTooltip
+  private val probInfectionTooltip = "Probability of getting infected after contacting another infected individual"
+  private val probInfectionLabel = new Label("Infection rate:") {
+    tooltip = probInfectionTooltip
   }
-  private val infectiousSlider = new IntSlider(DefaultConfiguration.timeInfectious.toInt, 0, 100){
-    tooltip = infectiousTooltip
+  private val probInfectionSlider = new ProbSlider() {
+    tooltip = probInfectionTooltip
+  }
+
+  private val probDyingTooltip = "Probability of dying after getting infected"
+  private val probDyingLabel = new Label("Death rate:") {
+    tooltip = probDyingTooltip
+  }
+  private val probDyingSlider = new ProbSlider() {
+    tooltip = probDyingTooltip
+  }
+
+  private val timeInfectiousTooltip = "Time an individual remains infectious to others is normal distributed around this value(μ) with σ=1"
+  private val timeInfectiousLabel = new Label("Time infectious:") {
+    tooltip = timeInfectiousTooltip
+  }
+  private val timeInfectiousSlider = new IntSlider(0, 100){
+    tooltip = timeInfectiousTooltip
   }
 
   private val HzTootlTip = "Number of redraw events per clock tick"
   private val HzLabel = new Label("Redraw frequency:") {
     tooltip = HzTootlTip
   }
-  private val HzSlider = new IntSlider(DefaultConfiguration.Hz, 0, 60) {
+  private val HzSlider = new IntSlider(0, 60) {
     tooltip = HzTootlTip
   }
 
@@ -290,9 +296,34 @@ class GUI() extends MainFrame with Drawable {
     tooltip = "Show information about this program"
   }
 
-  private val toDisable = List(seedIntField, randomSeedButton, popSizeSlider, velSlider, probInfectSlider, probDieSlider, infectiousSlider, HzSlider, aboutButton)
+  private val toDisable = List(seedIntField, randomSeedButton
+    , populationSzSlider, velocitySlider, probInfectionSlider
+    , probDyingSlider, timeInfectiousSlider, HzSlider
+    , aboutButton)
 
   private val window = this
+
+  def configuration: Configuration =
+    Configuration(
+        seed = seedIntField.value
+      , Hz = HzSlider.value
+      , populationSz = populationSzSlider.value
+      , velocitySigma = velocitySlider.value
+      , timeLimit = DefaultConfiguration.timeLimit
+      , probInfection= probInfectionSlider.value
+      , probDying = probDyingSlider.value
+      , timeInfectious = timeInfectiousSlider.value
+      )
+
+  def configuration_=(conf: Configuration): Unit = {
+    seedIntField.value = conf.seed
+    HzSlider.value = conf.Hz
+    populationSzSlider.value = conf.populationSz
+    velocitySlider.value = conf.velocitySigma.toInt
+    probInfectionSlider.value = conf.probInfection
+    probDyingSlider.value = conf.probDying
+    timeInfectiousSlider.value = conf.timeInfectious.toInt
+  }
 
   private object startButton extends Button {
     val startText = "Start"
@@ -301,21 +332,13 @@ class GUI() extends MainFrame with Drawable {
 
     var threadOpt: Option[Thread] = None
 
-    def onPress(): Unit = {
+    def onClick(): Unit = {
       threadOpt match {
         case None =>
           val thread = new Thread {
             override def run {
-              val s = seedIntField.value
-              val p = popSizeSlider.value
-              val pbInfect = probInfectSlider.value
-              val pbDying = probDieSlider.value
-              val vel = velSlider.value
-              val infectious = infectiousSlider.value
-              val Hz = HzSlider.value
-
               // create a simulator and simulate
-              val conf = DefaultConfiguration.copy(seed = s, Hz = Hz, velocitySigma = vel, populationSz = p, probInfection = pbInfect, probDying = pbDying, timeInfectious = infectious)
+              val conf = configuration
               val simulator = Simulator(window, conf)
               simulator.simulate()
             }
@@ -367,20 +390,20 @@ class GUI() extends MainFrame with Drawable {
         }
       , constraints(1, 0))
 
-    add(popSizeLabel, constraints(0, 1))
-    add(popSizeSlider, constraints(1, 1))
+    add(populationSzLabel, constraints(0, 1))
+    add(populationSzSlider, constraints(1, 1))
 
-    add(velLabel, constraints(0, 2))
-    add(velSlider, constraints(1, 2))
+    add(velocityLabel, constraints(0, 2))
+    add(velocitySlider, constraints(1, 2))
 
-    add(probInfectLabel, constraints(0, 3))
-    add(probInfectSlider, constraints(1, 3))
+    add(probInfectionLabel, constraints(0, 3))
+    add(probInfectionSlider, constraints(1, 3))
 
-    add(infectiousLabel, constraints(0, 4))
-    add(infectiousSlider, constraints(1, 4))
+    add(timeInfectiousLabel, constraints(0, 4))
+    add(timeInfectiousSlider, constraints(1, 4))
 
-    add(probDieLabel, constraints(0, 5))
-    add(probDieSlider, constraints(1, 5))
+    add(probDyingLabel, constraints(0, 5))
+    add(probDyingSlider, constraints(1, 5))
 
     add(HzLabel, constraints(0, 6))
     add(HzSlider, constraints(1, 6))
@@ -404,10 +427,10 @@ class GUI() extends MainFrame with Drawable {
   listenTo(randomSeedButton, startButton, aboutButton, scaleSlider)
   reactions += {
     case ButtonClicked(`randomSeedButton`) =>
-      seedIntField.text = Random.uniform(Int.MaxValue).toString
+      seedIntField.value = Random.uniform(Int.MaxValue)
 
     case ButtonClicked(`startButton`) =>
-      startButton.onPress()
+      startButton.onClick()
 
     case ButtonClicked(`aboutButton`) =>
       Dialog.showMessage(window
@@ -422,5 +445,6 @@ class GUI() extends MainFrame with Drawable {
 
   visible = true
   scale_=(0.8)
+  configuration_=(DefaultConfiguration)
   startButton.requestFocus()
 }

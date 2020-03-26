@@ -50,7 +50,6 @@ class Simulator(window: Drawable, conf: Configuration) {
   // updates priority queue with all new events for individual ia
   private def predictCollisions(ia: Individual): Unit = {
     if(!ia.isDead) {
-
       // individual-individual collisions
       for(i <- individuals) {
         val t = time + ia.timeToHit(i)
@@ -66,8 +65,7 @@ class Simulator(window: Drawable, conf: Configuration) {
     }
   }
 
-
-  def statistics: (Int, Int, Int, Int) =  {
+  private def statistics: (Int, Int, Int, Int) =  {
     var infected = 0
     var dead = 0
     var exposed = 0
@@ -100,7 +98,7 @@ class Simulator(window: Drawable, conf: Configuration) {
     }
   }
 
-  private def redraw(delay: Long): Unit = {
+  private def redraw(): Unit = {
     val (alive, dead, infected, exposed) = statistics
     val percentInfected = 100.0 * infected / alive
     history(time) = 100.0 * infected / alive
@@ -121,11 +119,6 @@ class Simulator(window: Drawable, conf: Configuration) {
 
       BoundingBox.drawOn(g2D)
     }
-
-    Thread.sleep((10 - delay) max 1)
-
-    // schedule next redraw event
-    pq.enqueue(Redraw(time + period))
   }
 
   /**
@@ -152,7 +145,8 @@ class Simulator(window: Drawable, conf: Configuration) {
       predictCollisions(i)
 
     // initial redraw event
-    pq.enqueue(Redraw(0))
+    Redraw.time = 0
+    pq.enqueue(Redraw)
 
     var t0 = System.currentTimeMillis()
 
@@ -169,9 +163,14 @@ class Simulator(window: Drawable, conf: Configuration) {
 
         // process event
         ev match {
-          case Redraw(t) =>
+          case Redraw =>
             val delay = System.currentTimeMillis() - t0
-            redraw(delay)
+            redraw()
+            Thread.sleep((10 - delay) max 1)
+
+            // schedule next redraw event
+            Redraw.time += period
+            pq.enqueue(Redraw)
             t0 = System.currentTimeMillis()
 
           case Collision(t, ia, ib) =>

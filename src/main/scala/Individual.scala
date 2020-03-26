@@ -47,12 +47,12 @@ object Individual {
 }
 
 class Individual( private var rx: Double
-                  , private var ry: Double // position
-                  , private var vx: Double
-                  , private var vy: Double // velocity
-                  , private val mass: Double // mass
-                  , private val radius: Double // radius
-                  , private var status: Individual.Status.Status
+                , private var ry: Double // position
+                , private var vx: Double
+                , private var vy: Double // velocity
+                , private val mass: Double // mass
+                , private val radius: Double // radius
+                , private var status: Individual.Status.Status
                 ) {
   import Individual._
 
