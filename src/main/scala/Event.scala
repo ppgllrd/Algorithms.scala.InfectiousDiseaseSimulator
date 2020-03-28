@@ -12,7 +12,7 @@ trait Event {
   def isValid: Boolean = true
 }
 
-// mutable and object because with can do with a single one of these
+// mutable and object because we can do with a single one of these
 case object Redraw extends Event {
   private var _time: Double = _
 
@@ -50,5 +50,5 @@ case class HorizontalWallCollision(time: Double, i: Individual) extends WallColl
 
 case class VerticalWallCollision(time: Double, i: Individual) extends WallCollision
 
-case class EndInfection(time: Double, p: Individual) extends Event
+case class EndInfection(time: Double, i: Individual) extends Event
 

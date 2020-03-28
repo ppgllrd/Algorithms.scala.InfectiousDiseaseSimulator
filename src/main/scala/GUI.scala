@@ -19,6 +19,7 @@ import scala.swing.event.{ButtonClicked, ValueChanged}
 
 trait Drawable {
   def drawWith(procedure : Graphics2D => Unit): Unit
+  val canvas: Component
 }
 
 object Fonts {
@@ -28,6 +29,16 @@ object Fonts {
   val sans11 = new Font(Font.SansSerif, java.awt.Font.PLAIN, 10)
   val sans14 = new Font(Font.SansSerif, java.awt.Font.PLAIN, 14)
   val default = sans11
+}
+
+object Colors {
+  val nonInfected = new Color(0, 0, 220)
+  val infected = Color.red
+  val recovered = new Color(0, 200, 0)
+  val dead = new Color(50, 50, 50)
+
+  def withAlpha(c: Color, alpha: Int): Color =
+    new Color(c.getRed, c.getGreen, c.getBlue, alpha)
 }
 
 class IntField(v: Int = 0) extends TextField {
@@ -61,8 +72,9 @@ abstract class NumericSlider[A] extends BoxPanel(Orientation.Horizontal) {
     columns = 4
     horizontalAlignment = Alignment.Right
     editable = false
-    maximumSize = new Dimension(0,15)
+    maximumSize = new Dimension(0, 15)
   }
+  private val numericSlider = this
 
   private def config(): Unit = {
     slider.majorTickSpacing = (slider.max - slider.min + 1) / 10
@@ -116,8 +128,9 @@ abstract class NumericSlider[A] extends BoxPanel(Orientation.Horizontal) {
 
   listenTo(slider)
   reactions += {
-    case ValueChanged(_) =>
+    case ValueChanged(`slider`) =>
       textField.text = formatText(value)
+      publish(new ValueChanged(numericSlider)) // propagate outwards
   }
 
   config()
@@ -201,13 +214,12 @@ class GUI() extends MainFrame with Drawable {
         val h = canvas.size.height
 
         val transform = new AffineTransform()
-        transform.translate(w/2, h/2)
+        transform.translate(w/2, 1.15*h/2)
         transform.scale(scale, scale)
         g2D.transform(transform)
         procedure(g2D)
       }
   }
-  setDrawingProcedure(g2D => BoundingBox.drawOn(g2D))
 
   def update(): Unit = {
     canvas.repaint()
@@ -218,7 +230,7 @@ class GUI() extends MainFrame with Drawable {
     update()
   }
 
-  private val canvas = new Label {
+  val canvas: Label = new Label {
     opaque = true
     background = Color.white
     peer.setDoubleBuffered(false)
@@ -227,7 +239,6 @@ class GUI() extends MainFrame with Drawable {
       super.paintComponent(g2D)
       g2D.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
       g2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-
       drawingProcedure(g2D)
     }
   }
@@ -296,7 +307,7 @@ class GUI() extends MainFrame with Drawable {
     tooltip = "Show information about this program"
   }
 
-  private val toDisable = List(seedIntField, randomSeedButton
+  private val toDisable = Array(seedIntField, randomSeedButton
     , populationSzSlider, velocitySlider, probInfectionSlider
     , probDyingSlider, timeInfectiousSlider, HzSlider
     , aboutButton)
@@ -328,7 +339,10 @@ class GUI() extends MainFrame with Drawable {
   private object startButton extends Button {
     val startText = "Start"
     text = startText
-    tooltip = s"$text running simulation"
+
+    def setTooptip(): Unit =
+      tooltip = s"$text running simulation"
+    setTooptip()
 
     var threadOpt: Option[Thread] = None
 
@@ -346,14 +360,14 @@ class GUI() extends MainFrame with Drawable {
           thread.start()
           threadOpt = Some(thread)
           text = "Stop"
-          tooltip = s"$text running simulation"
+          setTooptip()
           toDisable.foreach(_.enabled = false)
 
         case Some(thread) =>
           thread.stop()
           threadOpt = None
           text = startText
-          tooltip = s"$text running simulation"
+          setTooptip()
           toDisable.foreach(_.enabled = true)
       }
     }
@@ -387,8 +401,7 @@ class GUI() extends MainFrame with Drawable {
           contents += seedIntField
           contents += Swing.HStrut(5)
           contents += randomSeedButton
-        }
-      , constraints(1, 0))
+        }, constraints(1, 0))
 
     add(populationSzLabel, constraints(0, 1))
     add(populationSzSlider, constraints(1, 1))
@@ -444,6 +457,7 @@ class GUI() extends MainFrame with Drawable {
   }
 
   visible = true
+  setDrawingProcedure(g2D => BoundingBox.drawOn(g2D))
   scale_=(0.8)
   configuration_=(DefaultConfiguration)
   startButton.requestFocus()

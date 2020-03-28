@@ -67,10 +67,10 @@ class Individual( private var rx: Double
   def drawOn(g2D: Graphics2D): Unit =
     if(!isDead) {
       g2D.setColor(status match {
-        case Status.NonInfected => new Color(0, 0, 220)
-        case Status.Infected    => Color.red
-        case Status.Recovered   => new Color(0, 200, 0)
-        case Status.Dead        => Color.gray
+        case Status.NonInfected => Colors.nonInfected
+        case Status.Infected    => Colors.infected
+        case Status.Recovered   => Colors.recovered
+        case Status.Dead        => Colors.dead
       })
       g2D.fill(new Ellipse2D.Double(rx - radius, ry - radius, 2 * radius, 2 * radius))
     }
@@ -78,7 +78,7 @@ class Individual( private var rx: Double
   def canGetInfected: Boolean = status == Status.NonInfected
 
   def infect(): Unit =
-    if(status == Status.NonInfected)
+    if(canGetInfected)
       status = Status.Infected
 
   def isInfected: Boolean = status == Status.Infected
@@ -131,7 +131,7 @@ class Individual( private var rx: Double
     if(vx > 0)
       (BoundingBox.right - rx - radius) / vx
     else if(vx < 0)
-      (radius -rx + BoundingBox.left) / vx
+      (radius - rx + BoundingBox.left) / vx
     else
       Infinity
 

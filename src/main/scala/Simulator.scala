@@ -7,7 +7,7 @@
  * Robert Sedgewick and Kevin Wayne
  *******************************************************************/
 
-import java.awt.Color
+import java.awt.{Color}
 import java.awt.geom.Rectangle2D
 
 import scala.swing.Graphics2D
@@ -68,54 +68,72 @@ class Simulator(window: Drawable, conf: Configuration) {
   private def statistics: (Int, Int, Int, Int) =  {
     var infected = 0
     var dead = 0
-    var exposed = 0
+    var nonInfected = 0
     for(i <- individuals)
       if(i.isInfected)
         infected += 1
       else if(i.isDead)
         dead += 1
       else if(i.canGetInfected)
-        exposed += 1
+        nonInfected += 1
     val alive = individuals.length - dead
-    val nonInfected = alive - infected
-    return (alive, dead, infected, exposed)
+    return (alive, dead, infected, nonInfected)
   }
 
   // redraw all particles
-  private val top = BoundingBox.top.toInt-10
-  private val bottom = BoundingBox.bottom.toInt+25
+  private val top = BoundingBox.top.toInt-30
+  private val bottom = BoundingBox.bottom.toInt+30
   private val left = BoundingBox.left.toInt+5
 
   private object history {
-    private val values = Array.fill[Double](conf.timeLimit.toInt)(0)
-    def update(time: Double, value: Double): Unit = {
-      values(time.toInt) = value
+    private val resolution = 3
+    private val percentsInfected = Array.fill[Double]((resolution*conf.timeLimit).toInt)(0)
+    private val percentsNonInfected = Array.fill[Double]((resolution*conf.timeLimit).toInt)(0)
+    def update(time: Double, infected: Double, nonInfected: Double): Unit = {
+      val i = (resolution*time).toInt
+      percentsInfected(i) = infected
+      percentsNonInfected(i) = nonInfected
     }
+
+    private val width = 2
+    private val scale = 0.85
     def drawOn(g2D: Graphics2D): Unit = {
-      g2D.setColor(Color.red)
-      for(i <- 0 until time.toInt)
-        g2D.fill(new Rectangle2D.Double(left+i*3, top-values(i), 3, values(i)))
+      for(i <- 0 until (resolution*time).toInt) {
+        val percentRecovered = 100 - percentsInfected(i) - percentsNonInfected(i)
+        val xs = Array( (percentsInfected(i), Colors.infected)
+                      , (percentRecovered, Colors.recovered)
+                      , (percentsNonInfected(i), Colors.nonInfected)
+                      ).sortBy(-_._1)
+        for((y, color) <- xs) {
+          g2D.setColor(color)
+          val rect = new Rectangle2D.Double(left + i*width-1, top - y*scale, width+2, y*scale)
+          g2D.fill(rect)
+        }
+      }
     }
   }
 
   private def redraw(): Unit = {
-    val (alive, dead, infected, exposed) = statistics
+    val (alive, dead, infected, nonInfected) = statistics
     val percentInfected = 100.0 * infected / alive
-    history(time) = 100.0 * infected / alive
+    val percentNonInfected = 100.0 * nonInfected / alive
+    history.update(time, percentInfected, percentNonInfected)
 
     window.drawWith{ g2D =>
       g2D.setFont(Fonts.mono)
-      g2D.setColor(Color.red)
-      g2D.drawString(f"Infected: $infected%3d($percentInfected%6.2f%%)  Dead: $dead%4d", left, bottom)
-      g2D.setColor(Color.blue)
-      g2D.drawString(f"Non-infected: $exposed%3d", left+400, bottom)
+      g2D.setColor(Colors.infected)
+      g2D.drawString(f"Infected: $infected%3d($percentInfected%6.2f%%)", left, bottom)
+      g2D.setColor(Colors.dead)
+      g2D.drawString(f"Dead: $dead%4d", left+225, bottom)
+      g2D.setColor(Colors.nonInfected)
+      g2D.drawString(f"Non-infected: $nonInfected%3d($percentNonInfected%6.2f%%)", left+350, bottom)
       g2D.setColor(Color.black)
-      g2D.drawString(f"Time: $time%.2f", left+650, bottom)
+      g2D.drawString(f"Time: $time%.2f", left+700, bottom)
 
       history.drawOn(g2D)
 
-      for(p <- individuals)
-        p.drawOn(g2D)
+      for(i <- individuals)
+        i.drawOn(g2D)
 
       BoundingBox.drawOn(g2D)
     }
@@ -125,9 +143,9 @@ class Simulator(window: Drawable, conf: Configuration) {
    * Simulates the system of particles for the specified amount of time.
    */
 
-  def infect(p: Individual): Unit = {
-    p.infect()
-    pq.enqueue(EndInfection(time + rnd.normal(conf.timeInfectious), p))
+  def infect(i: Individual): Unit = {
+    i.infect()
+    pq.enqueue(EndInfection(time + rnd.normal(conf.timeInfectious), i))
   }
 
   def simulate(): Unit = {
@@ -202,9 +220,9 @@ class Simulator(window: Drawable, conf: Configuration) {
             i.bounceOffVerticalWall()
             predictCollisions(i)
 
-          case EndInfection(t, p) =>
+          case EndInfection(t, i) =>
             val die = rnd.bernoulli(conf.probDying)
-            p.endInfection(die)
+            i.endInfection(die)
         }
       }
     }

@@ -20,14 +20,14 @@ case class Configuration(seed: Int
                         )
 
 object DefaultConfiguration extends Configuration(
-  seed = 1
+  seed = 0
   , Hz = 48
-  , populationSz = 800
-  , velocitySigma = 10
-  , timeLimit = 10000
+  , populationSz = 500
+  , velocitySigma = 25
+  , timeLimit = 1000
   , probInfection = 1.0 / 3
-  , probDying = 0.2
-  , timeInfectious = 10
+  , probDying = 0.1
+  , timeInfectious = 15
   )
 
 
